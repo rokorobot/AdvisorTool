@@ -1,0 +1,25 @@
+{
+  "name": "adviser-tool",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A credit-aware local coding router: a Sonnet 5 executor that escalates to an Opus 4.8 / Fable 5 advisor only when policy allows, with per-task budgets and a cost ledger.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.110.0",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "@types/node": "^22.9.0"
+  }
+}
