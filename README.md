@@ -49,6 +49,68 @@ npm start -- "add input validation to src/parser.ts and a test for it"
 current directory), then type tasks at the `task>` prompt. Sessions keep context
 across tasks. `exit` to quit.
 
+## Daily use (install as a global command)
+
+For day-to-day work you don't edit *inside* this repo — you install it once and
+call it from whatever project you're working on. Each project gets its own
+ledger at `./.advisor-coder/ledger.jsonl`.
+
+**1. Build once** (compiles `src/` to `dist/`):
+
+```bash
+npm install
+npm run build      # re-run this whenever you change src/config.ts
+```
+
+**2. Make your key available everywhere** as an environment variable, so you
+don't need a `.env` in every project:
+
+```powershell
+# Windows (PowerShell) — persists to new terminals
+setx ANTHROPIC_API_KEY "sk-ant-..."
+```
+
+```bash
+# macOS / Linux — add to ~/.zshrc or ~/.bashrc
+export ANTHROPIC_API_KEY="sk-ant-..."
+```
+
+**3. Add an `advisor` command** that runs the build against the current folder:
+
+```powershell
+# Windows — add to your PowerShell profile ($PROFILE)
+function advisor {
+    node "C:\absolute\path\to\AdvisorTool\dist\index.js" @args
+}
+```
+
+```bash
+# macOS / Linux — add to ~/.zshrc or ~/.bashrc
+advisor() { node "/absolute/path/to/AdvisorTool/dist/index.js" "$@"; }
+```
+
+**4. Keep the ledger out of your repos** with a global gitignore:
+
+```bash
+git config --global core.excludesfile ~/.gitignore_global
+echo ".advisor-coder/" >> ~/.gitignore_global
+```
+
+Open a new terminal so all three take effect, then from any project:
+
+```bash
+cd /path/to/my-project
+advisor                                   # interactive REPL for a work session
+advisor "fix the off-by-one in src/pagination.ts"   # one-off task
+advisor route "refactor the auth layer"   # plan only, zero spend
+advisor ledger                            # this project's spend so far
+```
+
+**Daily loop:** `cd` into a project → `advisor` → type plain-English tasks →
+confirm the `[y/N]` prompts before each write/edit/shell command → `advisor
+ledger` to review spend. Before a big or risky change, `advisor route "..."`
+first to see the escalation decision and cost ceiling without paying.
+
 ## Commands
 
 Two subcommands read/plan without spending — neither makes a model call, and
