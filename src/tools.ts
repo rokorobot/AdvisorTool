@@ -150,14 +150,36 @@ export async function dispatchTool(block: ToolUseBlock): Promise<ToolResultBlock
         const file = safeResolve(String(args.path));
         const original = await fs.readFile(file, "utf8");
         const oldStr = String(args.old_str);
-        const occurrences = original.split(oldStr).length - 1;
+        const newStr = String(args.new_str);
+
+        // Prefer an exact match. If that fails, retry with CRLF/LF line endings
+        // normalized: the model usually emits "\n" even when the file on disk
+        // uses Windows "\r\n", which would otherwise make every edit miss.
+        const toLF = (s: string) => s.replace(/\r\n/g, "\n");
+        const exact = original.split(oldStr).length - 1;
+
+        let occurrences: number;
+        let apply: () => string;
+        if (exact >= 1) {
+          occurrences = exact;
+          apply = () => original.replace(oldStr, newStr);
+        } else {
+          const origLF = toLF(original);
+          occurrences = origLF.split(toLF(oldStr)).length - 1;
+          const usesCRLF = original.includes("\r\n");
+          apply = () => {
+            const replaced = origLF.replace(toLF(oldStr), toLF(newStr));
+            return usesCRLF ? replaced.replace(/\n/g, "\r\n") : replaced;
+          };
+        }
+
         if (occurrences === 0) {
           return { type: "tool_result", tool_use_id: id, content: `old_str not found in ${args.path}.`, is_error: true };
         }
         if (occurrences > 1) {
           return { type: "tool_result", tool_use_id: id, content: `old_str appears ${occurrences} times in ${args.path}; it must be unique.`, is_error: true };
         }
-        await fs.writeFile(file, original.replace(oldStr, String(args.new_str)), "utf8");
+        await fs.writeFile(file, apply(), "utf8");
         return { type: "tool_result", tool_use_id: id, content: `Edited ${args.path}.` };
       }
       case "run_bash": {
