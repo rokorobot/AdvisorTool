@@ -81,6 +81,55 @@ that touches a sensitive path — e.g. one that edits a file with `auth`,
 not reachable on your account, the log will show the call downgraded to Opus
 with `"fellBackFromFable": true`.
 
+## 4. Claude Code MCP verification (v0.2 — the main usage path)
+
+Build first:
+
+```powershell
+cd "C:\Users\Robert\Adviser Tool\adviser-tool"
+npm ci
+npm run build
+```
+
+Add the MCP server to Claude Code (everything after `--` is the server command):
+
+```powershell
+claude mcp add --transport stdio --scope user advisor -- node "C:\Users\Robert\Adviser Tool\adviser-tool\dist\mcp.js"
+```
+
+The server reads `ANTHROPIC_API_KEY` from its environment. In Claude Code, confirm
+the tools are visible — ask:
+
+```
+List available MCP tools from the advisor server.
+```
+
+- [ ] `consult_advisor`, `advisor_ledger`, and `estimate_route` are listed.
+
+**Zero-spend test** — ask Claude Code:
+
+```
+Use estimate_route for: refactor the audio engine.
+```
+
+- [ ] A route decision is returned, no API call.
+- [ ] `Fable allowed` is `yes` only when a planning/security/migration/hard trigger applies.
+
+**Paid planning test** — ask Claude Code:
+
+```
+Consult the advisor with purpose planning before changing the architecture.
+```
+
+- [ ] `consult_advisor` is called (approve the tool use).
+- [ ] `purpose: "planning"` routes to Fable 5 (see the tier note in the response footer).
+- [ ] The call is appended to `.advisor-coder/ledger.jsonl` in the project.
+- [ ] `advisor_ledger` (ask "check the advisor ledger") shows the new spend.
+
+**Budget gate** — the server refuses (does **not** bill) once a cap is hit: per
+`task_id` (3 consults / $0.75) or the rolling daily cap (`MCP.dailySpendCap`,
+$5 by default). A refused consult returns a `REFUSED (not billed)` message.
+
 ## Notes
 
 - Routing thresholds, budgets, model IDs, and the price table all live in

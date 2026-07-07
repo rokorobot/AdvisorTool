@@ -23,8 +23,11 @@ Two ways to use it:
 ```bash
 npm install
 npm run build
-claude mcp add advisor -- node "/absolute/path/to/AdvisorTool/dist/mcp.js"
+claude mcp add --transport stdio --scope user advisor -- node "/absolute/path/to/AdvisorTool/dist/mcp.js"
 ```
+
+Everything after `--` is the command Claude Code runs to launch the server;
+`--scope user` makes it available in every project (`project`/`local` also work).
 
 The server needs `ANTHROPIC_API_KEY` in its environment (or a `.env` next to
 where it runs). It exposes three tools:
