@@ -1,16 +1,45 @@
 # Adviser Tool — credit-aware coding router
 
-A local coding agent that runs a fast **executor** (Claude Sonnet 5) for the bulk
-of the work and escalates to a stronger **advisor** only when it's worth paying
-for. Unlike Anthropic's official advisor tool, *you* decide when the expensive
-model is called, what context it sees, and how much you spend — every call is
-logged and budgeted.
+A credit-aware **advisor service** for coding agents, plus a standalone CLI
+agent. The core idea: run cheap models for the bulk of the work and pay for a
+stronger **advisor** only when it's worth it — every call policy-gated, logged,
+and budgeted.
 
-- **Executor:** `claude-sonnet-5` — reads files, writes code, runs tests.
+Two ways to use it:
+
+1. **MCP server (recommended)** — plug it into Claude Code (or any MCP client).
+   Your IDE agent stays the executor and calls `consult_advisor` when stuck.
+2. **Standalone CLI** — a self-contained Sonnet executor loop driven from a
+   `task>` prompt in the terminal.
+
 - **Advisor (default):** `claude-opus-4-8` — high-leverage guidance at half Fable's rate.
-- **Advisor (hard cases):** `claude-fable-5` — reserved for security / data-migration
-  calls, or when a fix isn't converging. Falls back to Opus automatically if
-  Fable isn't reachable.
+- **Advisor (premium):** `claude-fable-5` — reserved for security, data-migration,
+  and **complex-planning** consults, or an explicit hard escalation. Falls back
+  to Opus automatically if Fable isn't reachable.
+- **CLI executor:** `claude-sonnet-5` — reads files, writes code, runs tests.
+
+## Use as an MCP server in Claude Code (v0.2)
+
+```bash
+npm install
+npm run build
+claude mcp add advisor -- node "/absolute/path/to/AdvisorTool/dist/mcp.js"
+```
+
+The server needs `ANTHROPIC_API_KEY` in its environment (or a `.env` next to
+where it runs). It exposes three tools:
+
+| Tool | Cost | What it does |
+| --- | --- | --- |
+| `consult_advisor` | paid, budgeted | Builds a compressed packet (your question + situation + live `git diff`), applies the tier policy, calls Opus/Fable, logs to the ledger, returns focused advice. |
+| `advisor_ledger` | free | Spend report for the workspace: by model, upper-model share, Fable triggers, fallbacks. |
+| `estimate_route` | free | Dry-run plan: tier decision, detected risk triggers, cost ceiling. |
+
+Tier selection for consults: `purpose: "planning" | "security" | "migration"`
+(or `hard: true`) → Fable 5; everything else → Opus 4.8. Budgets are enforced
+per `task_id` (3 consults / $0.75 by default) plus a rolling **daily cap**
+($5 by default, `MCP.dailySpendCap` in `src/config.ts`). A consult over budget
+is **refused, not billed**.
 
 ## Why a router instead of the official advisor tool
 
@@ -162,7 +191,8 @@ Routing thresholds and budgets live in `src/config.ts`:
 | `maxAdvisorSpendPerTask` | $0.75 | Dollar cap per task (0 = unlimited). |
 | `largeRefactorFileThreshold` | 8 | Diff size that auto-triggers a review. |
 | `testFailEscalation` | 2 | Failed test runs before auto-consult. |
-| `fableTriggers` | security, db/migration | Triggers that use the pricier tier. |
+| `fableTriggers` | security, db/migration, complex planning | Triggers that use the pricier tier. |
+| `MCP.dailySpendCap` | $5 | Daily advisor spend cap for MCP consults (0 = unlimited). |
 | `sensitivePathFragments` | auth, payment, … | Paths that mark a change sensitive. |
 | `confirmMutations` | true | Confirm before write/edit/bash. |
 
@@ -200,6 +230,7 @@ src/
   costLedger.ts        pricing, per-task summary, JSONL log
   ledgerReport.ts      `ledger` subcommand — reads the log, aggregates spend
   routePlan.ts         `route` / `--dry-run` — routing + cost plan, no spend
+  mcp.ts               MCP server — consult_advisor / advisor_ledger / estimate_route
   providers/
     anthropic.ts       SDK wrapper + access-error detection
 ```

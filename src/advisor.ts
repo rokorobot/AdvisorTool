@@ -20,14 +20,27 @@ const ADVISOR_SYSTEM =
   "If the packet is missing something you need to answer well, say exactly which file or output should be included next time. " +
   "Keep your answer under ~150 words.";
 
-export async function consultAdvisor(args: {
-  state: CodingState;
+export interface ConsultResult {
+  advice: string;
+  tier: "opus" | "fable";
+  model: string;
+  cost: number;
+  fellBackFromFable: boolean;
+}
+
+/**
+ * Core consult: call the decided tier with a prebuilt packet, falling back
+ * Fable→Opus on access errors, and record the spend. Shared by the CLI
+ * executor loop and the MCP server.
+ */
+export async function consultWithPacket(args: {
+  packet: string;
   decision: AdvisorDecision;
-  question: string;
+  taskId: string;
   ledger: CostLedger;
-}): Promise<string> {
-  const { state, decision, question, ledger } = args;
-  const packet = await buildAdvisorPacket(state, question);
+  onFallback?: () => void;
+}): Promise<ConsultResult> {
+  const { packet, decision, taskId, ledger, onFallback } = args;
 
   let model = decision.tier === "fable" ? MODELS.advisorHard : MODELS.advisorPrimary;
   let usedTier = decision.tier;
@@ -46,7 +59,7 @@ export async function consultAdvisor(args: {
       model = MODELS.advisorPrimary;
       usedTier = "opus";
       fellBackFromFable = true;
-      console.log("  advisor: Fable 5 not reachable — falling back to Opus 4.8.");
+      onFallback?.();
       res = await callModel({
         model,
         system: ADVISOR_SYSTEM,
@@ -67,7 +80,7 @@ export async function consultAdvisor(args: {
   const cost = estimateCost(model, res.usage);
   const rec: ModelCallRecord = {
     timestamp: new Date().toISOString(),
-    taskId: state.taskId,
+    taskId,
     model,
     role: "advisor",
     tier: usedTier,
@@ -80,9 +93,36 @@ export async function consultAdvisor(args: {
   };
   ledger.record(rec);
 
-  state.advisorCallsThisTask += 1;
-  state.advisorSpendThisTask += cost;
-  state.lastAdvisorTier = usedTier;
+  return {
+    advice: advice || "(advisor returned no text)",
+    tier: usedTier,
+    model,
+    cost,
+    fellBackFromFable,
+  };
+}
 
-  return advice || "(advisor returned no text)";
+export async function consultAdvisor(args: {
+  state: CodingState;
+  decision: AdvisorDecision;
+  question: string;
+  ledger: CostLedger;
+}): Promise<string> {
+  const { state, decision, question, ledger } = args;
+  const packet = await buildAdvisorPacket(state, question);
+
+  const result = await consultWithPacket({
+    packet,
+    decision,
+    taskId: state.taskId,
+    ledger,
+    onFallback: () =>
+      console.log("  advisor: Fable 5 not reachable — falling back to Opus 4.8."),
+  });
+
+  state.advisorCallsThisTask += 1;
+  state.advisorSpendThisTask += result.cost;
+  state.lastAdvisorTier = result.tier;
+
+  return result.advice;
 }

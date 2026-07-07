@@ -2,6 +2,7 @@
 
 export type AdvisorTrigger =
   | "architecture_change"
+  | "complex_planning"
   | "tests_failed_twice"
   | "security_sensitive"
   | "database_or_migration"

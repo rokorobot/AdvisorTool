@@ -44,6 +44,7 @@ export const POLICY = {
   fableTriggers: new Set<AdvisorTrigger>([
     "security_sensitive",
     "database_or_migration",
+    "complex_planning",
   ]),
   /** Path fragments that mark a change as security/data sensitive. */
   sensitivePathFragments: [
@@ -72,6 +73,17 @@ export const CONFIG = {
   confirmMutations: true,
   /** Where the cost ledger is appended (relative to workspaceRoot). */
   ledgerPath: ".advisor-coder/ledger.jsonl",
+};
+
+/** Settings for the MCP server (`npm run mcp` / dist/mcp.js). */
+export const MCP = {
+  /**
+   * Rolling cap on advisor spend per calendar day across ALL consults through
+   * the MCP server (0 = unlimited). A backstop so an IDE agent can't run away.
+   */
+  dailySpendCap: 5.0,
+  /** Task id used to group consults when the caller doesn't supply one. */
+  defaultTaskId: "adhoc",
 };
 
 export function getApiKey(): string {

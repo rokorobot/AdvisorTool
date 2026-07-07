@@ -21,10 +21,10 @@ import type { CodingState } from "./types.js";
 
 const execFileAsync = promisify(execFile);
 
-async function git(args: string[]): Promise<string> {
+async function git(args: string[], cwd: string = CONFIG.workspaceRoot): Promise<string> {
   try {
     const { stdout } = await execFileAsync("git", args, {
-      cwd: CONFIG.workspaceRoot,
+      cwd,
       maxBuffer: 4 * 1024 * 1024,
     });
     return stdout.trim();
@@ -91,6 +91,51 @@ export async function buildAdvisorPacket(
       truncate(state.lastTestOutput, 2500),
       ""
     );
+  }
+
+  parts.push("## Question for you", question);
+  return parts.join("\n");
+}
+
+/**
+ * Packet builder for MCP consults, where there is no executor loop tracking
+ * state — the calling agent (e.g. Claude Code) describes its own situation and
+ * we enrich it with the repo's live git diff.
+ */
+export async function buildConsultPacket(args: {
+  task: string;
+  situation?: string;
+  filesChanged?: string[];
+  testOutput?: string;
+  question: string;
+  workspaceRoot: string;
+}): Promise<string> {
+  const { task, situation, filesChanged, testOutput, question, workspaceRoot } = args;
+  const diffStat = await git(["diff", "--stat"], workspaceRoot);
+  const diff = truncate(await git(["diff"], workspaceRoot), 6000);
+
+  const parts = [
+    "# Advisor consult (via MCP)",
+    "",
+    "## Task the coding agent is working on",
+    task,
+    "",
+    "## The agent's own description of its situation",
+    truncate(situation?.trim() || "(none provided)", 3000),
+    "",
+    `## Files the agent says it changed (${filesChanged?.length ?? 0})`,
+    filesChanged?.length ? filesChanged.join("\n") : "(none reported)",
+    "",
+    "## git diff --stat",
+    diffStat || "(no diff / not a git repo)",
+    "",
+    "## git diff (truncated)",
+    diff || "(empty)",
+    "",
+  ];
+
+  if (testOutput?.trim()) {
+    parts.push("## Latest test/command output (truncated)", truncate(testOutput, 2500), "");
   }
 
   parts.push("## Question for you", question);

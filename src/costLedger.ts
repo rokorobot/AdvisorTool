@@ -35,12 +35,16 @@ export class CostLedger {
     this.records.push(rec);
   }
 
-  /** Append everything recorded so far to the JSONL file, then keep in memory. */
+  /**
+   * Append everything recorded since the last persist to the JSONL file.
+   * Clears the pending buffer afterwards so records are never written twice.
+   */
   async persist(): Promise<void> {
     if (this.records.length === 0) return;
     await fs.mkdir(path.dirname(this.ledgerPath), { recursive: true });
     const lines = this.records.map((r) => JSON.stringify(r)).join("\n") + "\n";
     await fs.appendFile(this.ledgerPath, lines, "utf8");
+    this.records = [];
   }
 
   taskSummary(taskId: string) {
